@@ -17,11 +17,19 @@
 #include <iostream>
 //key값, gotoxy등 여러가지 기능 지원
 #include <Windows.h>
+//kbhit func
+#include <conio.h>
+//vector structure
+#include <vector>
+//pow func
+#include <math.h>
+
+using namespace std;
 
 //세로 크기(행)
-constexpr int MAX_ROW_OMOK_SIZE = 10;
+constexpr int MAX_ROW_OMOK_SIZE = 17;
 //가로 크기(열)
-constexpr int MAX_COL_OMOK_SIZE = 10;
+constexpr int MAX_COL_OMOK_SIZE = 11;
 
 //gotoxy
 void gotoxy(int x, int y)
@@ -42,34 +50,52 @@ void textcolor(int foreground, int background)
 	SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), color);
 }
 
+//커서숨기기
+void CursorView(char show)
+{
+	HANDLE hConsole;
+	CONSOLE_CURSOR_INFO ConsoleCursor;
+
+	hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+
+	ConsoleCursor.bVisible = show;
+	ConsoleCursor.dwSize = 1;
+
+	SetConsoleCursorInfo(hConsole, &ConsoleCursor);
+}
+
 //프로그램 실행 시 오목판 배열을 형식에 맞게 할당해줌
 void InitOmok(char*** arr);
 
 //게임 시작 시 오목판과 다른 요소들 그리기
 void PaintGame(char*** arr);
 
-//For TEST
+//33규칙을 탐색
 bool Check33_1111(int row, int col, const char* STONE, char*** arr);
 bool Check33_112(int row, int col, const char* STONE, char*** arr);
 bool Check33_22(int row, int col, const char* STONE, char*** arr);
+
+//33규칙 위반시 알림
 void AnnounceRule(int row, int col, char*** arr);
 
 //돌을 찍은 기점에서 4방향*2 체크 [인자: 행, 열, 돌모양, 오목판 배열]
 bool CheckFinish(int row, int col, const char* STONE, char*** arr);
 
 //게임을 실행함
-void RunGame(char*** arr, char& row, char& col, bool& isBlackTurn);
+void RunGame(char*** arr, int& row, int& col, bool& isBlackTurn);
 
 //할당된 메모리를 반환
 void ReleaseMemory(char*** arr);
 
 int main()
 {
+	
+
 	//흑돌, 백돌이 순서대로 돌아가게 boolean형 선언, 흑돌이 게임 먼저 시작
 	bool isBlackTurn = TRUE;
 
 	//현재 커서가 위치한 곳의 좌표를 나타냄, 행과 열
-	char row, col;
+	int row, col;
 
 	//게임 시작은 오목판 크기의 중심에서 시작
 	row = MAX_ROW_OMOK_SIZE / 2;
@@ -80,6 +106,7 @@ int main()
 	for (int i = 0; i < MAX_ROW_OMOK_SIZE; ++i)
 		arr[i] = new char* [MAX_COL_OMOK_SIZE];
 
+	//오목판 초기화 -> 화면 출력 -> 입력을 반복하는 RunGame -> 종료시 메모리 반환
 	InitOmok(arr);
 	PaintGame(arr);
 	RunGame(arr, row, col, isBlackTurn);
@@ -788,6 +815,8 @@ bool CheckFinish(int row, int col, const char* STONE, char*** arr)
 
 void InitOmok(char*** arr)
 {
+	CursorView(NULL);
+
 	//2중 for문을 사용해서 각 좌표에 알맞는 기호를 할당
 	for (int i = 0; i < MAX_ROW_OMOK_SIZE; ++i)
 	{
@@ -858,96 +887,318 @@ void PaintGame(char*** arr)
 		printf("%2d ", 1 + i);
 		for (int j = 0; j < MAX_COL_OMOK_SIZE; ++j)
 		{
-			printf("%s ", arr[i][j]);
+			if(arr[i][j] == "●" || arr[i][j] == "○")
+				printf("%s", arr[i][j]);
+			else
+				printf("%s ", arr[i][j]);
 		}
 		printf("\n");
 	}
 }
 
-void RunGame(char*** arr, char& row, char& col, bool& isBlackTurn)
+void RunGame(char*** arr, int& row, int& col, bool& isBlackTurn)
 {
+	//방향키, 직접입력 방식을 toggle할 flag
+	bool isArrowMove = TRUE;
+
+	//직접입력 방식에서 현재 입력값을 저장하는 charBuffer
+	vector<char> inputCharBuff;
+
+	//charBuffer을 탐색할 iterator
+	vector<char>::iterator buffIt;
+
 	//게임이 끝날때 까지 무한 반복
 	while (TRUE)
 	{
-		//SPACE BAR를 누르면 오목알을 놓는다
-		if (GetAsyncKeyState(VK_SPACE) & 0x8000)
+		//방향키 방식일경우
+		if (isArrowMove)
 		{
-			//해당 좌표에 이미 오목알이 있는 경우 무시
-			if (arr[row][col] == "○" || arr[row][col] == "●") {}
-			else//아니면
+			//방향키 방식에서 [Tt]oggle을 누르면 현재 Aim을 없애고 isArrowMove flag값을 반전시키며 직접입력 방식으로 전환
+			if (_kbhit())
 			{
-				//검은색 돌 차례일경우
-				if (isBlackTurn)
+				switch(_getch())
 				{
-					if (Check33_1111(row, col, "○", arr) || Check33_112(row, col, "○", arr) || Check33_22(row, col, "○", arr))
-					{
-						AnnounceRule(row, col, arr);
-						continue;
-					}
-					//해당 좌표를 검은 돌로 교체
-					arr[row][col] = (char*)"○";
-					//종료 조건에 해당하는지 체크.. TRUE일경우 return하여 게임 종료
-					if (CheckFinish(row, col, "○", arr)) return;
+				case 'T': 
+					[[fallthrough]];
+				case 't':
+					isArrowMove = false;
+					gotoxy(3 + col * 2, row + 3);
+					textcolor(15, 0);
+					if (arr[row][col] == "○" || arr[row][col] == "●")
+						printf("%s", arr[row][col]);
+					else printf("%s ", arr[row][col]);
 
-					//BlackTurn을 FALSE로 하여 흰색 턴을 의미
-					isBlackTurn = FALSE;
+					system("cls");
+					PaintGame(arr);
+					
+					//charBuffer의 값을 지워준다
+					inputCharBuff.clear();
+
+					continue;
 				}
-				else
+			}
+			//SPACE BAR를 누르면 오목알을 놓는다
+			if (GetAsyncKeyState(VK_SPACE) & 0x8000)
+			{
+				//해당 좌표에 이미 오목알이 있는 경우 무시
+				if (arr[row][col] == "○" || arr[row][col] == "●") {}
+				else//아니면
 				{
-					arr[row][col] = (char*)"●";
-					if (CheckFinish(row, col, "●", arr)) return;
-					isBlackTurn = TRUE;
+					//검은색 돌 차례일경우
+					if (isBlackTurn)
+					{
+						if (Check33_1111(row, col, "○", arr) || Check33_112(row, col, "○", arr) || Check33_22(row, col, "○", arr))
+						{
+							AnnounceRule(row, col, arr);
+							continue;
+						}
+						//해당 좌표를 검은 돌로 교체
+						arr[row][col] = (char*)"○";
+						//종료 조건에 해당하는지 체크.. TRUE일경우 return하여 게임 종료
+						if (CheckFinish(row, col, "○", arr)) return;
+
+						//BlackTurn을 FALSE로 하여 흰색 턴을 의미
+						isBlackTurn = FALSE;
+					}
+					else
+					{
+						arr[row][col] = (char*)"●";
+						if (CheckFinish(row, col, "●", arr)) return;
+						isBlackTurn = TRUE;
+					}
+				}
+			}
+
+			//현재 AIM의 좌표로 커서를 이동하고 배경색이 없는(검정)으로 덮어준다
+			//이유는 AIM이 움직일때마다 AIM에서 벗어난 좌표의 배경색을 초기화 해줘야함
+			gotoxy(3 + col * 2, row + 3);
+
+			//해당 if문은 그래픽기호(┌  ┐ ┘)들의 크기 비율이 가로:세로 = 1:2 이기때문에 출력할 때 한칸씩 띄워줘야한다.
+			//하지만 오목알은 비율이 1:1이기 때문에 한칸을 띄워주지 않는다.
+			if (arr[row][col] == "○" || arr[row][col] == "●")
+				printf("%s", arr[row][col]);
+			else printf("%s ", arr[row][col]);
+
+			//방향키 입력에 따라 행과 열의 위치를 바꿔준다. elseif는 의도한 것.
+			if (GetAsyncKeyState(VK_UP) & 0x8000)			--row;	//↑
+			else if (GetAsyncKeyState(VK_DOWN) & 0x8000)	++row;	//↓
+			else if (GetAsyncKeyState(VK_LEFT) & 0x8000)	--col;	//←
+			else if (GetAsyncKeyState(VK_RIGHT) & 0x8000)	++col;	//→
+
+			//행과 열의 좌표가 오목판을 벗어나면 메모리 참조 오류가 발생하기 때문에 바로잡아준다.
+			if (row < 0) row = 0;
+			if (row > MAX_ROW_OMOK_SIZE - 1) row = MAX_ROW_OMOK_SIZE - 1;
+			if (col < 0) col = 0;
+			if (col > MAX_COL_OMOK_SIZE - 1) col = MAX_COL_OMOK_SIZE - 1;
+
+			//방향키 입력에 따른 커서를 AIM으로 옮김
+			gotoxy(3 + col * 2, row + 3);
+
+			//현재 턴에 따라 배경색을 변경
+			if (isBlackTurn)	textcolor(15, 2);
+			else				textcolor(15, 4);
+
+			//해당 AIM에 바둑알이 있을경우 한칸 띄우기를 하지 않음 (오목알 비율때문, 위에 설명 있음)
+			if (arr[row][col] == "○" || arr[row][col] == "●")	printf("%s", arr[row][col]);
+			else												printf("%s ", arr[row][col]);
+
+			//AIM을 제외한 곳은 배경색이 검정임
+			textcolor(15, 0);
+
+			//현재 좌표를 수치화하여 출력하기위함
+			gotoxy(0, MAX_ROW_OMOK_SIZE + 4);
+			if (isBlackTurn) printf("○'s X,Y: %2d %2d", col + 1, row + 1);
+			else			printf("●'s X,Y: %2d %2d", col + 1, row + 1);
+
+			//Sleep를 하여 while문의 반복을 줄여 사용 리소스를 감소시키고 키 입력의 반복을 억제시킨다
+			Sleep(100);
+		}	
+		else
+		{
+			//system clear, paintGame 실행 후 입력창 표시
+			gotoxy(0, MAX_ROW_OMOK_SIZE + 4);
+			if (isBlackTurn) printf("○'s X,Y:  ");
+			else			 printf("●'s X,Y:  ");
+
+			//위 코드의 입력창 표시 후에 지금까지 charBuffer에입력한 내용 출력
+			for (buffIt = inputCharBuff.begin(); buffIt != inputCharBuff.end(); ++buffIt)
+				printf("%c", *buffIt);
+
+			//배열의 시작주소는 0부터 시작, 입력값의 -1을 미리 해줌
+			int row = -1, col = -1;
+
+			//charBuffer의 빈칸의 개수를 저장하는 변수
+			int blankCount = 0;
+
+			//charBuffer의 빈칸의 개수를 셈
+			for (buffIt = inputCharBuff.begin(); buffIt != inputCharBuff.end(); ++buffIt)
+			{
+				if (*buffIt == ' ') ++blankCount;
+			}
+
+			//입력 형태는 "5 4" 처럼 두 수 사이에 띄어쓰기가 하나만 있기에 1개일때만 실행
+			if (blankCount == 1)
+			{
+				//sizeCap은 char을 int형으로 바꿀 때 자리수의 제곱을 해주기 위한 변수
+				int sizeCap;
+				//charBuffer의 맨 뒤에서부터 탐색하며 해당 자리수의 숫자 * sizeCap^n만큼 자리수를 포함하여 row, col에 더해준다
+				for (sizeCap = 0, buffIt = inputCharBuff.end() - 1; *buffIt != ' '; --buffIt)
+					row += (*buffIt - '0') * (int)pow(10, sizeCap++);
+
+				//col도 마찬가지로 char를 int형으로 변환한다
+				for (--buffIt, sizeCap = 0; /*NULL*/ ; --buffIt)
+				{
+					col += (*buffIt - '0') * (int)pow(10, sizeCap++);
+					if (buffIt == inputCharBuff.begin()) break;
+				}
+			}
+
+			//charBuffer의 입력값이 범위 내 일경우, 해당 위치에 Aim 표시
+			if (row >= 0 && col >= 0 && row < MAX_ROW_OMOK_SIZE && col < MAX_COL_OMOK_SIZE)
+			{	
+				//위치를 표시할 Aim의 위치를 지정하고 턴에따른 색상값 변경
+				gotoxy(3 + col * 2, row + 3);
+				if (isBlackTurn)	textcolor(15, 2);
+				else				textcolor(15, 4);
+
+				//해당 AIM에 바둑알이 있을경우 한칸 띄우기를 하지 않음 (오목알 비율때문, 위에 설명 있음)
+				if (arr[row][col] == "○" || arr[row][col] == "●")	printf("%s", arr[row][col]);
+				else												printf("%s ", arr[row][col]);
+
+				//AIM을 제외한 곳은 배경색이 검정임
+				textcolor(15, 0);
+
+			}
+
+			//키보드 입력을 받을 때 마다 각 기능 수행
+			//scanf나 cin으로 입력을 받으면 개행문자 입력까지 시스템이 pause하기때문에
+			//kbhit과 getch의 함수로 실시간으로 입력때마다 이에 대한 반응을 하기 위해서 구현
+			//실시간으로 Aim표시, T키를 통한 Toggle가능 등등 여러가지 기능 추가 가능
+			if (_kbhit())
+			{
+				//화면 초기화
+				system("cls");
+				PaintGame(arr);
+
+				//입력할때마다 charBuffer의 크기에 커서를 위치시키고 자연스러운 입력을 유도
+				gotoxy(10 + inputCharBuff.size() , MAX_ROW_OMOK_SIZE + 4);
+
+				//kbhit함수에서 버퍼에 들어있는 char을 가져오며 각 기능 수행
+				switch(_getch())
+				{
+				
+				//입력값이 [Tt] 일경우 isArrowMove를 true시키며 continue
+				case 'T':
+					[[fallthrough]];
+				case 't':
+
+					system("cls");
+					PaintGame(arr);
+
+					row = MAX_ROW_OMOK_SIZE / 2;
+					col = MAX_COL_OMOK_SIZE / 2;
+
+					isArrowMove = true;
+
+					continue;
+
+				//입력값이 [0~9] (숫자)일경우 charBuffer에 push한다
+				case '0':
+					inputCharBuff.push_back('0');
+					continue;
+				case '1':
+					inputCharBuff.push_back('1');
+					continue;
+				case '2':
+					inputCharBuff.push_back('2');
+					continue;
+				case '3':
+					inputCharBuff.push_back('3');
+					continue;
+				case '4':
+					inputCharBuff.push_back('4');
+					continue;
+				case '5':
+					inputCharBuff.push_back('5');
+					continue;
+				case '6':
+					inputCharBuff.push_back('6');
+					continue;
+				case '7':
+					inputCharBuff.push_back('7');
+					continue;
+				case '8':
+					inputCharBuff.push_back('8');
+					continue;
+				case '9':
+					inputCharBuff.push_back('9');
+					continue;
+
+				//Backspace(지우기)일경우 맨 뒤 요소를 pop하며 비어있는경우는 무시된다
+				case 8:		//BACKSPACE
+					if(!inputCharBuff.empty())
+					inputCharBuff.pop_back();
+
+					continue;
+
+				//띄어쓰기 일경우 ' '(blank)를 추가하며 비어있는경우에는 빈칸을 추가하지 않는다
+				case 32:	//SPACEBAR
+					if (inputCharBuff.empty()) continue;
+					inputCharBuff.push_back(' ');
+					continue;
+
+				//엔터입력시 해당 위치에 오목알을 둔다 기존의 방식과 동일
+				case 13:	//ENTER
+					{
+					//99,99 입력시 종료
+					if (row == 98 && col == 98) return;
+						inputCharBuff.clear();
+						
+						//입력값이 오목판의 크기를 벗어나는경우 continue, 위치 재조정
+						if (row < 0 || col < 0 || row >= MAX_ROW_OMOK_SIZE || col >= MAX_COL_OMOK_SIZE)
+						{
+							row = MAX_ROW_OMOK_SIZE / 2;
+							col = MAX_COL_OMOK_SIZE / 2;
+							continue;
+						}
+						
+						//이미 돌이 있는경우 넘어감
+						if (arr[row][col] == "○" || arr[row][col] == "●") {}
+						//아니면
+						else
+						{
+							//검은색 돌 차례일경우
+							if (isBlackTurn)
+							{
+								if (Check33_1111(row, col, "○", arr) || Check33_112(row, col, "○", arr) || Check33_22(row, col, "○", arr))
+								{
+									AnnounceRule(row, col, arr);
+									continue;
+								}
+								//해당 좌표를 검은 돌로 교체
+								arr[row][col] = (char*)"○";
+								//종료 조건에 해당하는지 체크.. TRUE일경우 return하여 게임 종료
+								if (CheckFinish(row, col, "○", arr)) return;
+
+								//BlackTurn을 FALSE로 하여 흰색 턴을 의미
+								isBlackTurn = FALSE;
+							}
+							else
+							{
+								//흰 돌 차례인경우 흰 돌을 놓는다
+								arr[row][col] = (char*)"●";
+								if (CheckFinish(row, col, "●", arr)) return;
+								isBlackTurn = TRUE;
+							}
+
+							//화면 초기화
+							system("cls");
+							PaintGame(arr);
+						}
+					}
 				}
 			}
 		}
-
-		
-		//현재 AIM의 좌표로 커서를 이동하고 배경색이 없는(검정)으로 덮어준다
-		//이유는 AIM이 움직일때마다 AIM에서 벗어난 좌표의 배경색을 초기화 해줘야함
-		gotoxy(3 + col * 2, row + 3);
-
-		//해당 if문은 그래픽기호(┌  ┐ ┘)들의 크기 비율이 가로:세로 = 1:2 이기때문에 출력할 때 한칸씩 띄워줘야한다.
-		//하지만 오목알은 비율이 1:1이기 때문에 한칸을 띄워주지 않는다.
-		if (arr[row][col] == "○" || arr[row][col] == "●")
-			printf("%s", arr[row][col]);
-		else printf("%s ", arr[row][col]);
-		
-
-		//방향키 입력에 따라 행과 열의 위치를 바꿔준다. elseif는 의도한 것.
-		if (GetAsyncKeyState(VK_UP) & 0x8000)			--row;	//↑
-		else if (GetAsyncKeyState(VK_DOWN) & 0x8000)	++row;	//↓
-		else if (GetAsyncKeyState(VK_LEFT) & 0x8000)	--col;	//←
-		else if (GetAsyncKeyState(VK_RIGHT) & 0x8000)	++col;	//→
-
-		//행과 열의 좌표가 오목판을 벗어나면 메모리 참조 오류가 발생하기 때문에 바로잡아준다.
-		if (row < 0) row = 0;
-		if (row > MAX_ROW_OMOK_SIZE - 1) row = MAX_ROW_OMOK_SIZE - 1;
-		if (col < 0) col = 0;
-		if (col > MAX_COL_OMOK_SIZE - 1) col = MAX_COL_OMOK_SIZE - 1;
-
-		//방향키 입력에 따른 커서를 AIM으로 옮김
-		gotoxy(3 + col * 2, row + 3);
-
-		//현재 턴에 따라 배경색을 변경
-		if (isBlackTurn)	textcolor(15, 2);
-		else				textcolor(15, 4);
-
-		//해당 AIM에 바둑알이 있을경우 한칸 띄우기를 하지 않음 (오목알 비율때문, 위에 설명 있음)
-		if (arr[row][col] == "○" || arr[row][col] == "●")	printf("%s", arr[row][col]);
-		else												printf("%s ", arr[row][col]);
-
-		//AIM을 제외한 곳은 배경색이 검정임
-		textcolor(15, 0);
-
-
-		//현재 좌표를 수치화하여 출력하기위함
-		gotoxy(0, MAX_ROW_OMOK_SIZE + 4);
-		if (isBlackTurn) printf("○'s X,Y: %2d %2d", row + 1, col + 1);
-		else			printf("●'s X,Y: %2d %2d", row + 1, col + 1);
-
-
-		//Sleep를 하여 while문의 반복을 줄여 사용 리소스를 감소시키고 키 입력의 반복을 억제시킨다
-		Sleep(100);
 	}
 }
 
