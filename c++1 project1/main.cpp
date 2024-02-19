@@ -27,9 +27,9 @@
 using namespace std;
 
 //세로 크기(행)
-constexpr int MAX_ROW_OMOK_SIZE = 17;
+constexpr int MAX_ROW_OMOK_SIZE = 15;
 //가로 크기(열)
-constexpr int MAX_COL_OMOK_SIZE = 11;
+constexpr int MAX_COL_OMOK_SIZE = 15;
 
 //gotoxy
 void gotoxy(int x, int y)
